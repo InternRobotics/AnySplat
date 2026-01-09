@@ -1,7 +1,20 @@
 # Copyright (C) 2022-present Naver Corporation. All rights reserved.
 # Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
 
+import os
+import sys
 import torch
+
+# Add DLL directories for Windows (required for Python 3.8+ on Windows 10+)
+if sys.platform == 'win32':
+    torch_lib = os.path.join(os.path.dirname(torch.__file__), 'lib')
+    if os.path.isdir(torch_lib):
+        os.add_dll_directory(torch_lib)
+    # Add CUDA bin directory if available
+    cuda_path = os.environ.get('CUDA_PATH', r'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4')
+    cuda_bin = os.path.join(cuda_path, 'bin')
+    if os.path.isdir(cuda_bin):
+        os.add_dll_directory(cuda_bin)
 
 try:
     import curope as _kernels # run `python setup.py install`

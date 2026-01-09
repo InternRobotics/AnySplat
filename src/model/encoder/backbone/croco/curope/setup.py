@@ -25,8 +25,8 @@ setup(
                     "kernels.cu",
                 ],
                 extra_compile_args = dict(
-                    nvcc=['-O3','--ptxas-options=-v',"--use_fast_math"]+all_cuda_archs, 
-                    cxx=['-O3'])
+                    nvcc=['-O3','--ptxas-options=-v',"--use_fast_math","--allow-unsupported-compiler"]+all_cuda_archs, 
+                    cxx=['/O2'])
                 )
     ],
     cmdclass = {

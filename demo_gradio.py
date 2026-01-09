@@ -178,10 +178,24 @@ def gradio_demo(
     all_files = [f"{i}: {filename}" for i, filename in enumerate(all_files)]
 
     print("Running run_model...")
-    with torch.no_grad():
-        plyfile, video, depth_colored = get_reconstructed_scene(
-            target_dir, model, device
-        )
+    import traceback
+    try:
+        with torch.no_grad():
+            plyfile, video, depth_colored = get_reconstructed_scene(
+                target_dir, model, device
+            )
+    except Exception as e:
+        error_msg = f"Error during reconstruction: {str(e)}\n{traceback.format_exc()}"
+        try:
+            print(error_msg, flush=True)
+        except (OSError, UnicodeEncodeError):
+            # Fallback for Windows encoding issues (errno 22)
+            sys.stderr.write(error_msg + "\n")
+            sys.stderr.flush()
+        # Also write to a log file
+        with open("reconstruction_errors.log", "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*80}\n{time.strftime('%Y-%m-%d %H:%M:%S')}\n{error_msg}\n")
+        raise
 
     end_time = time.time()
     print(f"Total time: {end_time - start_time:.2f} seconds (including IO)")
@@ -216,91 +230,16 @@ if __name__ == "__main__":
         checkbox_label_background_fill_selected="*button_primary_background_fill",
         checkbox_label_text_color_selected="*button_primary_text_color",
     )
-    css = """
-        .custom-log * {
-            font-style: italic;
-            font-size: 22px !important;
-            background-image: linear-gradient(120deg, #0ea5e9 0%, #6ee7b7 60%, #34d399 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            font-weight: bold !important;
-            color: transparent !important;
-            text-align: center !important;
-        }
-        
-        .example-log * {
-            font-style: italic;
-            font-size: 16px !important;
-            background-image: linear-gradient(120deg, #0ea5e9 0%, #6ee7b7 60%, #34d399 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent !important;
-        }
-        
-        #my_radio .wrap {
-            display: flex;
-            flex-wrap: nowrap;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #my_radio .wrap label {
-            display: flex;
-            width: 50%;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 10px 0;
-            box-sizing: border-box;
-        }
-        """
-    with gr.Blocks(css=css, title="AnySplat Demo", theme=theme) as demo:
+    css = ""
+    with gr.Blocks(css=css, title="Evolver", theme=theme) as demo:
         gr.Markdown(
             """
-            <h1 style='text-align: center;'>AnySplat: Feed-forward 3D Gaussian Splatting from Unconstrained Views</h1>
+            <h1 style='text-align: center;'>Evolver</h1>
+            <p style='text-align: center; color: #666;'>3D Gaussian Splatting from Images</p>
             """
         )
 
-        with gr.Row():
-            gr.Markdown(
-                """
-                        <p align="center">
-                        <a title="Website" href="https://city-super.github.io/anysplat/" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
-                            <img src="https://www.obukhov.ai/img/badges/badge-website.svg">
-                        </a>
-                        <a title="arXiv" href="https://arxiv.org/pdf/2505.23716" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
-                            <img src="https://www.obukhov.ai/img/badges/badge-pdf.svg">
-                        </a>
-                        <a title="Github" href="https://github.com/OpenRobotLab/AnySplat" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
-                            <img src="https://img.shields.io/badge/Github-Page-black" alt="badge-github-stars">
-                        </a>
-                
-                        </p>
-                        """
-            )
-        with gr.Row():
-            gr.Markdown(
-                """
-            ### Getting Started:
-
-            1. Upload Your Data: Use the "Upload Video" or "Upload Images" buttons on the left to provide your input. Videos will be automatically split into individual frames (one frame per second).
-
-            2. Preview: Your uploaded images will appear in the gallery on the left.
-
-            3. Reconstruct: Click the "Reconstruct" button to start the 3D reconstruction process.
-
-            4. Visualize: The reconstructed 3D Gaussian Splat will appear in the viewer on the right, along with the rendered RGB and depth videos. The trajectory of the rendered video is obtained by interpolating the estimated input image poses.
-            
-            <strong style="color: #0ea5e9;">Please note:</strong> <span style="color: #0ea5e9; font-weight: bold;">The generated splats are large in size, so they may not load successfully in the Hugging Face demo. You can download the .ply file and render it using other viewers, such as [SuperSplat](https://playcanvas.com/supersplat/editor).</span>
-            """
-            )
-
         target_dir_output = gr.Textbox(label="Target Dir", visible=False, value="None")
-        is_example = gr.Textbox(label="is_example", visible=False, value="None")
-        num_images = gr.Textbox(label="num_images", visible=False, value="None")
-        dataset_name = gr.Textbox(label="dataset_name", visible=False, value="None")
-        scene_name = gr.Textbox(label="scene_name", visible=False, value="None")
-        image_type = gr.Textbox(label="image_type", visible=False, value="None")
 
         with gr.Row():
             with gr.Column(scale=2):
@@ -317,14 +256,13 @@ if __name__ == "__main__":
                             label="Preview",
                             columns=4,
                             height="300px",
-                            show_download_button=True,
                             object_fit="contain",
                             preview=True,
                         )
 
             with gr.Column(scale=4):
                 with gr.Tabs():
-                    with gr.Tab("AnySplat Output"):
+                    with gr.Tab("Output"):
                         with gr.Column():
                             reconstruction_output = gr.Model3D(
                                 label="3D Reconstructed Gaussian Splat",
@@ -362,71 +300,6 @@ if __name__ == "__main__":
                                 scale=1,
                             )
 
-        # ---------------------- Examples section ----------------------
-
-        examples = [
-            [None, "examples/video/re10k_1eca36ec55b88fe4.mp4", "re10k", "1eca36ec55b88fe4", "2", "Real", "True",],
-            [None, "examples/video/bungeenerf_colosseum.mp4", "bungeenerf", "colosseum", "8", "Synthetic", "True",],
-            [None, "examples/video/fox.mp4", "InstantNGP", "fox", "14", "Real", "True",],
-            [None, "examples/video/matrixcity_street.mp4", "matrixcity", "street", "32", "Synthetic", "True",],
-            [None, "examples/video/vrnerf_apartment.mp4", "vrnerf", "apartment", "32", "Real", "True",],
-            [None, "examples/video/vrnerf_kitchen.mp4", "vrnerf", "kitchen", "17", "Real", "True",],
-            [None, "examples/video/vrnerf_riverview.mp4", "vrnerf", "riverview", "12", "Real", "True",],
-            [None, "examples/video/vrnerf_workshop.mp4", "vrnerf", "workshop", "32", "Real", "True",],
-            [None, "examples/video/fillerbuster_ramen.mp4", "fillerbuster", "ramen", "32", "Real", "True",],
-            [None, "examples/video/meganerf_rubble.mp4", "meganerf", "rubble", "10", "Real", "True",],
-            [None, "examples/video/llff_horns.mp4", "llff", "horns", "12", "Real", "True",],
-            [None, "examples/video/llff_fortress.mp4", "llff", "fortress", "7", "Real", "True",],
-            [None, "examples/video/dtu_scan_106.mp4", "dtu", "scan_106", "20", "Real", "True",],
-            [None, "examples/video/horizongs_hillside_summer.mp4", "horizongs", "hillside_summer", "55", "Synthetic", "True",],
-            [None, "examples/video/kitti360.mp4", "kitti360", "kitti360", "64", "Real", "True",],
-        ]
-
-        def example_pipeline(
-            input_images,
-            input_video,
-            dataset_name,
-            scene_name,
-            num_images_str,
-            image_type,
-            is_example,
-        ):
-            """
-            1) Copy example images to new target_dir
-            2) Reconstruct
-            3) Return model3D + logs + new_dir + updated dropdown + gallery
-            We do NOT return is_example. It's just an input.
-            """
-            target_dir, image_paths = handle_uploads(input_video, input_images)
-            plyfile, video, depth_colored = gradio_demo(target_dir)
-            return plyfile, video, depth_colored, target_dir, image_paths
-
-        gr.Markdown("Click any row to load an example.", elem_classes=["example-log"])
-
-        gr.Examples(
-            examples=examples,
-            inputs=[
-                input_images,
-                input_video,
-                dataset_name,
-                scene_name,
-                num_images,
-                image_type,
-                is_example,
-            ],
-            outputs=[
-                reconstruction_output,
-                rgb_video,
-                depth_video,
-                target_dir_output,
-                image_gallery,
-            ],
-            fn=example_pipeline,
-            cache_examples=False,
-            examples_per_page=50,
-        )
-
-        gr.Markdown("<p style='text-align: center; font-style: italic; color: #666;'>We thank VGGT for their excellent gradio implementation!</p>")
 
         submit_btn.click(
             fn=clear_fields,
@@ -438,8 +311,6 @@ if __name__ == "__main__":
                 target_dir_output,
             ],
             outputs=[reconstruction_output, rgb_video, depth_video],
-        ).then(
-            fn=lambda: "False", inputs=[], outputs=[is_example]
         )
 
         input_video.change(
@@ -454,6 +325,50 @@ if __name__ == "__main__":
         )
 
         # demo.launch(share=share, server_name=server_name, server_port=server_port)
-        demo.queue(max_size=20).launch(show_error=True, share=True)
-
-        # We thank VGGT for their excellent gradio implementation
+        import sys
+        import traceback
+        import atexit
+        
+        # Save original stderr
+        original_stderr = sys.stderr
+        
+        # Create a class that writes to both file and original stderr
+        class TeeStderr:
+            def __init__(self, file, original):
+                self.file = file
+                self.original = original
+            
+            def write(self, text):
+                self.file.write(text)
+                self.file.flush()
+                self.original.write(text)
+                self.original.flush()
+            
+            def flush(self):
+                self.file.flush()
+                self.original.flush()
+            
+            def close(self):
+                self.file.close()
+        
+        # Open log file and create tee wrapper
+        log_file = open("runtime_errors.log", "w", encoding="utf-8")
+        tee_stderr = TeeStderr(log_file, original_stderr)
+        sys.stderr = tee_stderr
+        
+        # Register cleanup function to restore stderr and close file on exit
+        def cleanup():
+            sys.stderr = original_stderr
+            if not log_file.closed:
+                log_file.close()
+        
+        atexit.register(cleanup)
+        
+        print("Starting Gradio app...", flush=True)
+        print("Errors will be logged to runtime_errors.log", flush=True)
+        try:
+            demo.queue(max_size=20).launch(show_error=True, share=False)
+        except Exception as e:
+            traceback.print_exc()
+            cleanup()
+            raise

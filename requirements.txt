@@ -35,4 +35,4 @@ open3d
 einops
 safetensors
 git+https://github.com/facebookresearch/pytorch3d.git
-https://github.com/nerfstudio-project/gsplat/releases/download/v1.4.0/gsplat-1.4.0%2Bpt22cu121-cp310-cp310-linux_x86_64.whl
+gsplat==1.4.0

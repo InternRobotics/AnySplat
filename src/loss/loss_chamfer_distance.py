@@ -13,8 +13,12 @@ from typing import Generic, TypeVar
 from dataclasses import fields
 import torch.nn.functional as F
 import sys
-from pytorch3d.loss import chamfer_distance
 import os
+
+try:
+    from pytorch3d.loss import chamfer_distance
+except ImportError:
+    chamfer_distance = None  # pytorch3d not available - only needed for training
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # from src.loss.depth_anything.dpt import DepthAnything
 from src.misc.utils import vis_depth_map
@@ -51,6 +55,11 @@ class LossChamferDistance(Loss[LossChamferDistanceCfg, LossChamferDistanceCfgWra
         depth_dict: dict,
         global_step: int,
     ) -> Float[Tensor, ""]:
+        if chamfer_distance is None:
+            raise ImportError(
+                "pytorch3d is required for LossChamferDistance. "
+                "Please install it with: pip install 'git+https://github.com/facebookresearch/pytorch3d.git'"
+            )
         # Scale the depth between the near and far planes.
         b, v, h, w, _ = depth_dict['distill_infos']['pts_all'].shape
         pred_pts = depth_dict['distill_infos']['pts_all'].flatten(0, 1)

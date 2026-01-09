@@ -7,7 +7,7 @@ from .loss_depth_gt import LossDepthGT, LossDepthGTCfgWrapper
 from .loss_lod import LossLOD, LossLODCfgWrapper
 from .loss_depth_consis import LossDepthConsis, LossDepthConsisCfgWrapper
 from .loss_normal_consis import LossNormalConsis, LossNormalConsisCfgWrapper
-from .loss_chamfer_distance import LossChamferDistance, LossChamferDistanceCfgWrapper
+
 LOSSES = {
     LossDepthCfgWrapper: LossDepth,
     LossLpipsCfgWrapper: LossLpips,
@@ -17,10 +17,18 @@ LOSSES = {
     LossLODCfgWrapper: LossLOD,
     LossDepthConsisCfgWrapper: LossDepthConsis,
     LossNormalConsisCfgWrapper: LossNormalConsis,
-    LossChamferDistanceCfgWrapper: LossChamferDistance,
 }
 
-LossCfgWrapper = LossDepthCfgWrapper | LossLpipsCfgWrapper | LossMseCfgWrapper | LossOpacityCfgWrapper | LossDepthGTCfgWrapper | LossLODCfgWrapper | LossDepthConsisCfgWrapper | LossNormalConsisCfgWrapper | LossChamferDistanceCfgWrapper
+LossCfgWrapper = LossDepthCfgWrapper | LossLpipsCfgWrapper | LossMseCfgWrapper | LossOpacityCfgWrapper | LossDepthGTCfgWrapper | LossLODCfgWrapper | LossDepthConsisCfgWrapper | LossNormalConsisCfgWrapper
+
+# Optional: Chamfer distance loss requires pytorch3d (only for training)
+try:
+    from .loss_chamfer_distance import LossChamferDistance, LossChamferDistanceCfgWrapper
+    LOSSES[LossChamferDistanceCfgWrapper] = LossChamferDistance
+    LossCfgWrapper = LossCfgWrapper | LossChamferDistanceCfgWrapper
+except ImportError:
+    LossChamferDistance = None
+    LossChamferDistanceCfgWrapper = None
 
 def get_losses(cfgs: list[LossCfgWrapper]) -> list[Loss]:
     return [LOSSES[type(cfg)](cfg) for cfg in cfgs]
